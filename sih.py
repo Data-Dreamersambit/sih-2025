@@ -5,10 +5,17 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 import pandas as pd
 import json
-import os
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
+import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+
+# Get API key from environment
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Page configuration
 st.set_page_config(
@@ -53,31 +60,28 @@ st.markdown("""
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = None
 
-def setup_gemini_api(api_key):
+def setup_gemini_api():
     """Setup Gemini API configuration"""
     try:
-        genai.configure(api_key=api_key)
-        # Try different model names that are currently available
+        if not GEMINI_API_KEY:
+            st.error("❌ Gemini API Key not found. Please set it in your .env file.")
+            return None
+
+        genai.configure(api_key=GEMINI_API_KEY)
         model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
         for model_name in model_names:
             try:
                 model = genai.GenerativeModel(model_name)
-                # Test the model with a simple query
-                test_response = model.generate_content("Hello")
-                st.success(f"✅ Successfully connected using model: {model_name}")
+                test_response = model.generate_content("Test")
                 return model
-            except Exception as model_error:
-                st.warning(f"Model {model_name} not available: {str(model_error)}")
+            except:
                 continue
-        
-        # If all models fail, return None
-        st.error("No available Gemini models found. Please check your API key and try again.")
         return None
-        
     except Exception as e:
-        st.error(f"Error setting up Gemini API: {str(e)}")
+        st.error(f"Gemini setup error: {e}")
         return None
+
 
 def create_crop_recommendation_prompt():
     """Create a detailed prompt template for crop recommendations"""

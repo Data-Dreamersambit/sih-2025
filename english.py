@@ -4,6 +4,15 @@ import pandas as pd
 import json
 from datetime import datetime
 import plotly.express as px
+import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+
+# Get API key from environment
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 
 # Page configuration
 st.set_page_config(
@@ -78,12 +87,15 @@ st.markdown("""
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = None
 
-# Embedded API Key
-GEMINI_API_KEY = "AIzaSyDnxrqmQWtSi9f8nYAFIOl7FYDOkfYwKOE"
+ 
 
 def setup_gemini_api():
     """Setup Gemini API configuration"""
     try:
+        if not GEMINI_API_KEY:
+            st.error("❌ Gemini API Key not found. Please set it in your .env file.")
+            return None
+
         genai.configure(api_key=GEMINI_API_KEY)
         model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
@@ -95,8 +107,10 @@ def setup_gemini_api():
             except:
                 continue
         return None
-    except:
+    except Exception as e:
+        st.error(f"Gemini setup error: {e}")
         return None
+
 
 def get_crop_recommendations(model, month, location, budget, experience, farm_size, organic):
     """Get crop recommendations using Gemini API"""
