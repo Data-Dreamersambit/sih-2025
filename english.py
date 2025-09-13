@@ -6,6 +6,10 @@ from datetime import datetime
 import plotly.express as px
 import os
 from dotenv import load_dotenv
+from gtts import gTTS
+import tempfile
+
+
 
 # Load .env file
 load_dotenv()
@@ -87,6 +91,16 @@ st.markdown("""
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = None
 
+def speak_text(text):
+    """Convert text to speech and return audio file path"""
+    try:
+        tts = gTTS(text=text, lang="en")
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(temp_file.name)
+        return temp_file.name
+    except Exception as e:
+        st.error(f"Speech error: {e}")
+        return None
  
 
 def setup_gemini_api():
@@ -245,6 +259,8 @@ def main():
                 st.error("❌ Failed to generate recommendations. Please try again.")
     
     # Display Recommendations
+    
+    
     if st.session_state.recommendations:
         recommendations = st.session_state.recommendations
         
@@ -278,6 +294,7 @@ def main():
                     st.markdown("**⚠️ Considerations:**")
                     for consideration in crop['considerations']:
                         st.write(f"• {consideration}")
+                        
         
         # Analysis Tab
         if len(recommendations['recommendations']) > 1:
@@ -304,7 +321,7 @@ def main():
                                      ticktext=['Low', 'Medium', 'High']))
             st.plotly_chart(fig, use_container_width=True)
         
-        # Advice Section
+                # Advice Section
         col1, col2 = st.columns(2)
         
         with col1:
@@ -315,6 +332,19 @@ def main():
             st.markdown("#### 📅 Seasonal Notes")
             st.warning(recommendations['seasonal_notes'])
         
+        # 👉 Voice Feature goes here
+        st.markdown("### 🔊 Listen to Recommendations")
+        speech_text = (
+            "Here are your crop recommendations. "
+            + " , ".join([crop['crop_name'] for crop in recommendations['recommendations']])
+            + ". General Advice: " + recommendations['general_advice']
+            + ". Seasonal Notes: " + recommendations['seasonal_notes']
+        )
+        
+        audio_path = speak_text(speech_text)
+        if audio_path:
+            st.audio(audio_path, format="audio/mp3")
+        
         # Additional Tips
         st.markdown("#### 📚 Additional Tips")
         tips = [
@@ -324,6 +354,7 @@ def main():
             "🚜 Account for machinery and labor costs",
             "📈 Diversify your crops to reduce risks"
         ]
+ 
         
         for tip in tips:
             st.write(tip)

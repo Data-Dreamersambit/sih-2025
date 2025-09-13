@@ -6,6 +6,8 @@ from datetime import datetime
 import plotly.express as px
 import os
 from dotenv import load_dotenv
+from gtts import gTTS
+import tempfile
 
 # Load .env file
 load_dotenv()
@@ -16,7 +18,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Page configuration
 st.set_page_config(
-    page_title="🌾 Crop Profit Advisor",
+    page_title="🌾 फसल मुनाफा सलाहकार",
     page_icon="🌾",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -87,13 +89,23 @@ st.markdown("""
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = None
 
+def speak_text(text, lang="en"):
+    """Convert text to speech and return audio file path"""
+    try:
+        tts = gTTS(text=text, lang=lang)
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(temp_file.name)
+        return temp_file.name
+    except Exception as e:
+        st.error(f"आवाज़ त्रुटि: {e}")
+        return None
  
 
 def setup_gemini_api():
     """Setup Gemini API configuration"""
     try:
         if not GEMINI_API_KEY:
-            st.error("❌ Gemini API Key not found. Please set it in your .env file.")
+            st.error("❌ Gemini API Key नहीं मिली। कृपया इसे अपनी .env फ़ाइल में सेट करें।")
             return None
 
         genai.configure(api_key=GEMINI_API_KEY)
@@ -108,7 +120,7 @@ def setup_gemini_api():
                 continue
         return None
     except Exception as e:
-        st.error(f"Gemini setup error: {e}")
+        st.error(f"Gemini सेटअप त्रुटि: {e}")
         return None
 
 
@@ -116,34 +128,35 @@ def get_crop_recommendations(model, month, location, budget, experience, farm_si
     """Get crop recommendations using Gemini API"""
     try:
         prompt = f"""
-        You are an Indian agriculture consultant. Based on the following information, recommend crops:
+        आप एक भारतीय कृषि सलाहकार हैं। निम्नलिखित जानकारी के आधार पर, फसलों की सिफारिश करें:
         
-        Month: {month}
-        Location: {location}
-        Budget: ₹{budget}
-        Experience: {experience}
-        Farm Size: {farm_size}
-        Organic Farming: {'Yes' if organic else 'No'}
+        महीना: {month}
+        स्थान: {location}
+        बजट: ₹{budget}
+        अनुभव: {experience}
+        खेत का आकार: {farm_size}
+        जैविक खेती: {'हाँ' if organic else 'नहीं'}
         
-        Respond in JSON format:
+        कृपया JSON प्रारूप में उत्तर दें (सभी जानकारी हिंदी में):
         {{
             "recommendations": [
                 {{
-                    "crop_name": "Crop Name",
-                    "profit_potential": "High/Medium/Low",
-                    "estimated_roi": "percentage",
-                    "investment_required": "amount",
-                    "growing_period": "time in months",
-                    "key_benefits": ["benefit1", "benefit2", "benefit3"],
-                    "considerations": ["consideration1", "consideration2"],
-                    "market_price_range": "market rate"
+                    "crop_name": "फसल का नाम",
+                    "profit_potential": "उच्च/मध्यम/कम",
+                    "estimated_roi": "प्रतिशत में",
+                    "investment_required": "राशि",
+                    "growing_period": "महीनों में समय",
+                    "key_benefits": ["लाभ1", "लाभ2", "लाभ3"],
+                    "considerations": ["विचार1", "विचार2"],
+                    "market_price_range": "बाजार दर"
                 }}
             ],
-            "general_advice": "General advice",
-            "seasonal_notes": "Seasonal notes"
+            "general_advice": "सामान्य सलाह हिंदी में",
+            "seasonal_notes": "मौसमी टिप्पणी हिंदी में"
         }}
         
-        Recommend 3-5 crops based on Indian weather patterns, soil conditions, and market conditions.
+        भारतीय मौसम पैटर्न, मिट्टी की स्थिति और बाजार की स्थिति के आधार पर 3-5 फसलों की सिफारिश करें।
+        सभी जानकारी हिंदी में दें।
         """
         
         response = model.generate_content(prompt)
@@ -158,28 +171,31 @@ def get_crop_recommendations(model, month, location, budget, experience, farm_si
         else:
             return {
                 "recommendations": [{
-                    "crop_name": "Consult Local Expert",
-                    "profit_potential": "Variable",
-                    "estimated_roi": "Contact specialist",
-                    "investment_required": f"Within ₹{budget}",
-                    "growing_period": "Varies",
-                    "key_benefits": ["Local analysis required"],
-                    "considerations": ["Contact agriculture department"],
-                    "market_price_range": "Market dependent"
+                    "crop_name": "स्थानीय विशेषज्ञ से सलाह लें",
+                    "profit_potential": "परिवर्तनशील",
+                    "estimated_roi": "विशेषज्ञ से संपर्क करें",
+                    "investment_required": f"₹{budget} के भीतर",
+                    "growing_period": "अलग-अलग",
+                    "key_benefits": ["स्थानीय विश्लेषण आवश्यक"],
+                    "considerations": ["कृषि विभाग से संपर्क करें"],
+                    "market_price_range": "बाजार पर निर्भर"
                 }],
                 "general_advice": response_text[:300],
-                "seasonal_notes": f"For {location} in {month}, check local weather patterns."
+                "seasonal_notes": f"{location} में {month} के लिए स्थानीय मौसम पैटर्न देखें।"
             }
     except Exception as e:
-        st.error(f"Error getting recommendations: {str(e)}")
+        st.error(f"सिफारिशें प्राप्त करने में त्रुटि: {str(e)}")
         return None
 
 def display_crop_card(crop_data, index):
     """Display crop recommendation card"""
     # Map profit potential to CSS class
     profit_mapping = {
+        'उच्च': 'profit-high',
         'High': 'profit-high',
+        'मध्यम': 'profit-medium',
         'Medium': 'profit-medium', 
+        'कम': 'profit-low',
         'Low': 'profit-low'
     }
     profit_class = profit_mapping.get(crop_data['profit_potential'], 'profit-medium')
@@ -187,18 +203,18 @@ def display_crop_card(crop_data, index):
     st.markdown(f"""
     <div class="crop-card">
         <div class="crop-title">🌱 {crop_data['crop_name']}</div>
-        <p><strong>Growing Period:</strong> {crop_data['growing_period']}</p>
-        <p><strong>Investment Required:</strong> {crop_data['investment_required']}</p>
-        <p><strong>Market Rate:</strong> {crop_data['market_price_range']}</p>
-        <p><strong>Profit Potential:</strong> <span class="{profit_class}">{crop_data['profit_potential']}</span></p>
+        <p><strong>उगाने की अवधि:</strong> {crop_data['growing_period']}</p>
+        <p><strong>आवश्यक निवेश:</strong> {crop_data['investment_required']}</p>
+        <p><strong>बाजार दर:</strong> {crop_data['market_price_range']}</p>
+        <p><strong>मुनाफे की संभावना:</strong> <span class="{profit_class}">{crop_data['profit_potential']}</span></p>
         <p><strong>ROI:</strong> {crop_data['estimated_roi']}</p>
     </div>
     """, unsafe_allow_html=True)
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🌾 Crop Profit Advisor</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">AI-powered Crop Recommendation System for Indian Farmers</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🌾 फसल मुनाफा सलाहकार</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">भारतीय किसानों के लिए AI-आधारित फसल सिफारिश सिस्टम</p>', unsafe_allow_html=True)
     
     # Input Section
     st.markdown('<div class="input-container">', unsafe_allow_html=True)
@@ -206,43 +222,43 @@ def main():
     col1, col2 = st.columns(2)
     
     with col1:
-        months = ['January', 'February', 'March', 'April', 'May', 'June',
-                 'July', 'August', 'September', 'October', 'November', 'December']
-        selected_month = st.selectbox("📅 Month", months, index=datetime.now().month - 1)
+        months = ['जनवरी', 'फरवरी', 'मार्च', 'अप्रैल', 'मई', 'जून',
+                 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर']
+        selected_month = st.selectbox("📅 महीना", months, index=datetime.now().month - 1)
         
-        location = st.text_input("📍 Location", placeholder="e.g., Punjab, India or Maharashtra")
+        location = st.text_input("📍 स्थान", placeholder="जैसे: पंजाब, भारत या महाराष्ट्र")
     
     with col2:
-        budget = st.number_input("💰 Budget (₹)", min_value=1000, max_value=10000000, value=50000, step=5000)
+        budget = st.number_input("💰 बजट (₹)", min_value=1000, max_value=10000000, value=50000, step=5000)
         
-        experience = st.selectbox("Experience Level", ["New Farmer", "Intermediate", "Experienced Farmer"])
+        experience = st.selectbox("अनुभव स्तर", ["नया किसान", "मध्यम", "अनुभवी किसान"])
         
-        farm_size = st.selectbox("Farm Size", ["Small (Less than 5 acres)", "Medium (5-50 acres)", "Large (50+ acres)"])
+        farm_size = st.selectbox("खेत का आकार", ["छोटा (5 एकड़ से कम)", "मध्यम (5-50 एकड़)", "बड़ा (50+ एकड़)"])
         
-        organic = st.checkbox("Prefer Organic Farming")
+        organic = st.checkbox("जैविक खेती पसंद करें")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Get Recommendations Button
-    if st.button("🚀 Get Crop Recommendations", type="primary", use_container_width=True):
+    if st.button("🚀 फसल सिफारिशें प्राप्त करें", type="primary", use_container_width=True):
         if not location.strip():
-            st.error("Please enter your location")
+            st.error("कृपया अपना स्थान दर्ज करें")
             return
         
         model = setup_gemini_api()
         if not model:
-            st.error("Gemini API connection issue. Please check your internet connection.")
+            st.error("Gemini API कनेक्शन समस्या। कृपया अपना इंटरनेट कनेक्शन जांचें।")
             return
         
-        with st.spinner("🤖 Analyzing market conditions and preparing recommendations..."):
+        with st.spinner("🤖 बाजार की स्थिति का विश्लेषण और सिफारिशें तैयार कर रहा हूं..."):
             recommendations = get_crop_recommendations(model, selected_month, location, budget, 
                                                      experience, farm_size, organic)
             
             if recommendations:
                 st.session_state.recommendations = recommendations
-                st.success("✅ Recommendations generated successfully!")
+                st.success("✅ सिफारिशें सफलतापूर्वक तैयार हो गईं!")
             else:
-                st.error("❌ Failed to generate recommendations. Please try again.")
+                st.error("❌ सिफारिशें तैयार करने में असफल। कृपया पुनः प्रयास करें।")
     
     # Display Recommendations
     if st.session_state.recommendations:
@@ -251,16 +267,16 @@ def main():
         # Summary Metrics
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("📅 Month", selected_month)
+            st.metric("📅 महीना", selected_month)
         with col2:
-            st.metric("📍 Location", location)
+            st.metric("📍 स्थान", location)
         with col3:
-            st.metric("💰 Budget", f"₹{budget:,}")
+            st.metric("💰 बजट", f"₹{budget:,}")
         with col4:
-            st.metric("🌱 Recommendations", len(recommendations['recommendations']))
+            st.metric("🌱 सिफारिशें", len(recommendations['recommendations']))
         
         # Recommendations
-        st.markdown('<h2 class="recommendation-header">🎯 Recommended Crops</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="recommendation-header">🎯 सुझाई गई फसलें</h2>', unsafe_allow_html=True)
         
         for i, crop in enumerate(recommendations['recommendations']):
             col1, col2 = st.columns([3, 1])
@@ -270,59 +286,72 @@ def main():
             
             with col2:
                 st.markdown(f"### #{i+1}")
-                with st.expander("📝 Details"):
-                    st.markdown("**🎯 Key Benefits:**")
+                with st.expander("📝 विवरण"):
+                    st.markdown("**🎯 मुख्य लाभ:**")
                     for benefit in crop['key_benefits']:
                         st.write(f"• {benefit}")
                     
-                    st.markdown("**⚠️ Considerations:**")
+                    st.markdown("**⚠️ विचारणीय बातें:**")
                     for consideration in crop['considerations']:
                         st.write(f"• {consideration}")
         
         # Analysis Tab
         if len(recommendations['recommendations']) > 1:
-            st.subheader("📊 Profit Analysis")
+            st.subheader("📊 मुनाफा विश्लेषण")
             
             crop_names = [crop['crop_name'] for crop in recommendations['recommendations']]
             profit_levels = [crop['profit_potential'] for crop in recommendations['recommendations']]
             
             profit_numeric = []
             for level in profit_levels:
-                if level == 'High':
+                if level in ['उच्च', 'High']:
                     profit_numeric.append(3)
-                elif level == 'Medium':
+                elif level in ['मध्यम', 'Medium']:
                     profit_numeric.append(2)
                 else:
                     profit_numeric.append(1)
             
-            fig = px.bar(x=crop_names, y=profit_numeric, title="Profit Comparison",
-                        labels={'x': 'Crops', 'y': 'Profit Level'},
+            fig = px.bar(x=crop_names, y=profit_numeric, title="मुनाफे की तुलना",
+                        labels={'x': 'फसलें', 'y': 'मुनाफे का स्तर'},
                         color=profit_numeric, color_continuous_scale='Oranges')
             
             fig.update_layout(showlegend=False,
                             yaxis=dict(tickmode='array', tickvals=[1, 2, 3], 
-                                     ticktext=['Low', 'Medium', 'High']))
+                                     ticktext=['कम', 'मध्यम', 'उच्च']))
             st.plotly_chart(fig, use_container_width=True)
         
         # Advice Section
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("#### 🌾 General Advice")
+            st.markdown("#### 🌾 सामान्य सलाह")
             st.info(recommendations['general_advice'])
         
         with col2:
-            st.markdown("#### 📅 Seasonal Notes")
+            st.markdown("#### 📅 मौसमी टिप्पणी")
             st.warning(recommendations['seasonal_notes'])
+
+        # 👉 Voice Feature
+        st.markdown("### 🔊 सिफारिशें सुनें")
+        speech_text = (
+            "यहाँ आपकी फसल सिफारिशें हैं। "
+            + " , ".join([crop['crop_name'] for crop in recommendations['recommendations']])
+            + ". सामान्य सलाह: " + recommendations['general_advice']
+            + ". मौसमी टिप्पणी: " + recommendations['seasonal_notes']
+        )
+        
+        audio_path = speak_text(speech_text, lang="hi")
+        if audio_path:
+            st.audio(audio_path, format="audio/mp3")
         
         # Additional Tips
-        st.markdown("#### 📚 Additional Tips")
+        st.markdown("#### 📚 अतिरिक्त सुझाव")
         tips = [
-            "🔍 Check local market prices before making final decisions",
-            "🌡️ Consider climate change impacts on your chosen crops",
-            "💧 Evaluate water availability and irrigation costs",
-            "🚜 Account for machinery and labor costs",
-            "📈 Diversify your crops to reduce risks"
+            "🔍 अंतिम निर्णय लेने से पहले स्थानीय बाजार की कीमतें जांचें",
+            "🌡️ अपनी चुनी गई फसलों पर जलवायु परिवर्तन के प्रभावों पर विचार करें",
+            "💧 पानी की उपलब्धता और सिंचाई की लागत का मूल्यांकन करें",
+            "🚜 मशीनरी और श्रम की लागत का हिसाब रखें",
+            "📈 जोखिम कम करने के लिए अपनी फसलों में विविधता लाएं"
         ]
         
         for tip in tips:
